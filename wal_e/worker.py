@@ -23,6 +23,7 @@ logger = log_help.get_logger('wal_e.worker')
 
 PSQL_BIN = 'psql'
 LZOP_BIN = 'lzop'
+OPENSSL_BIN = 'openssl'
 S3CMD_BIN = 's3cmd'
 MBUFFER_BIN = 'mbuffer'
 
@@ -115,6 +116,8 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
                        '-'],
                  bufsize=BUFSIZE_HT),
             dict(args=[LZOP_BIN, '-d', '--stdout'], stdout=subprocess.PIPE,
+                 bufsize=BUFSIZE_HT),
+            dict(args=[OPENSSL_BIN, 'enc','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'], stdout=subprocess.PIPE,
                  bufsize=BUFSIZE_HT))
 
         assert len(popens) > 0
@@ -125,7 +128,7 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
 
         pipe_wait(popens)
 
-        s3cmd_proc, lzop_proc = popens
+        s3cmd_proc, lzop_proc, openssl_proc = popens
 
         def check_exitcode(cmdname, popen):
             if popen.returncode != 0:
@@ -135,6 +138,7 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
                     unicode(s3cmd_proc.returncode))
 
         check_exitcode('s3cmd', s3cmd_proc)
+        check_exitcode('openssl', openssl_proc)
         check_exitcode('lzop', lzop_proc)
     except KeyboardInterrupt, keyboard_int:
         for popen in popens:
@@ -198,11 +202,13 @@ def do_lzop_s3_get(s3_url, path, s3cmd_config_path):
                 dict(args=[S3CMD_BIN, '-c', s3cmd_config_path,
                            'get', s3_url, '-'],
                      bufsize=BUFSIZE_HT),
+                dict(args=[OPENSSL_BIN, 'dec','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'], stdout=subprocess.PIPE,
+                     bufsize=BUFSIZE_HT),
                 dict(args=[LZOP_BIN, '-d'], stdout=decomp_out,
                      bufsize=BUFSIZE_HT))
             pipe_wait(popens)
 
-            s3cmd_proc, lzop_proc = popens
+            s3cmd_proc, openssl_proc, lzop_proc = popens
 
             def check_exitcode(cmdname, popen):
                 if popen.returncode != 0:
@@ -212,6 +218,7 @@ def do_lzop_s3_get(s3_url, path, s3cmd_config_path):
                         unicode(s3cmd_proc.returncode))
 
             check_exitcode('s3cmd', s3cmd_proc)
+            check_exitcode('openssl', openssl_proc)
             check_exitcode('lzop', lzop_proc)
 
             print >>sys.stderr, ('Got and decompressed file: '

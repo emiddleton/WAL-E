@@ -45,6 +45,7 @@ Dependencies
 * s3cmd
 * lzop
 * psql
+* openssl
 * mbuffer
 * python-argparse *or* Python 2.7
 
