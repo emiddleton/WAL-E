@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-
+import os
 import wal_e.log_help as log_help
 
 from wal_e.exception import UserException, UserCritical
@@ -76,7 +76,7 @@ def do_partition_put(backup_s3_prefix, tpart_number, tpart, rate_limit,
 
     """
     with tempfile.NamedTemporaryFile(mode='w') as tf:
-        compression_p = popen_sp([OPENSSL_BIN,'enc','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'],
+        compression_p = popen_sp([OPENSSL_BIN,'enc','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD')],
                                  stdin=subprocess.PIPE, stdout=tf,
                                  bufsize=BUFSIZE_HT)
         tpart.tarfile_write(compression_p.stdin, rate_limit=rate_limit)
@@ -114,7 +114,7 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
                                  'part_{0}.tar.gz.aes'.format(tpart_number)]),
                        '-'],
                  bufsize=BUFSIZE_HT),
-            dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'], stdout=subprocess.PIPE,
+            dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD')], stdout=subprocess.PIPE,
                  bufsize=BUFSIZE_HT))
 
         assert len(popens) > 0
@@ -161,7 +161,7 @@ def do_openssl_s3_put(s3_url, path, s3cmd_config_path):
 
     """
     with tempfile.NamedTemporaryFile(mode='w') as tf:
-        compression_p = popen_sp([OPENSSL_BIN,'enc','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password','-in',path], stdout=tf,
+        compression_p = popen_sp([OPENSSL_BIN,'enc','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD'),'-in',path], stdout=tf,
                                  bufsize=BUFSIZE_HT)
         compression_p.wait()
 
@@ -198,7 +198,7 @@ def do_openssl_s3_get(s3_url, path, s3cmd_config_path):
                 dict(args=[S3CMD_BIN, '-c', s3cmd_config_path,
                            'get', s3_url, '-'],
                      bufsize=BUFSIZE_HT),
-                dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'], stdout=decomp_out,
+                dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD')], stdout=decomp_out,
                      bufsize=BUFSIZE_HT))
             pipe_wait(popens)
 
