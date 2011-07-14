@@ -29,7 +29,7 @@ import wal_e.log_help as log_help
 
 from wal_e.exception import UserException, UserCritical
 from wal_e.piper import popen_sp
-from wal_e.worker import PSQL_BIN, LZOP_BIN, S3CMD_BIN, MBUFFER_BIN
+from wal_e.worker import PSQL_BIN, OPENSSL_BIN, S3CMD_BIN, MBUFFER_BIN
 from wal_e.worker import check_call_wait_sigint
 
 # TODO: Make controllable from userland
@@ -222,11 +222,11 @@ class S3Backup(object):
         This function ignores the directory pg_xlog, which contains WAL
         files and are not generally part of a base backup.
 
-        Note that this is also lzo compresses the files: thus, the number
-        of pooled processes involves doing a full sequential scan of the
-        uncompressed Postgres heap file that is pipelined into lzo. Once
-        lzo is completely finished (necessary to have access to the file
-        size) the file is sent to S3.
+        Note that this is also openssl encrypts and compresses the files:
+        thus, the number of pooled processes involves doing a full
+        sequential scan of the uncompressed Postgres heap file that is
+        pipelined into openssl. Once openssl is completely finished
+        (necessary to have access to the file size) the file is sent to S3.
 
         TODO: Investigate an optimization to decouple the compression and
         upload steps to make sure that the most efficient possible use of
@@ -281,7 +281,7 @@ class S3Backup(object):
                                .format(self.s3_prefix, FILE_STRUCTURE_VERSION,
                                        **start_backup_info))
 
-        # absolute upload paths are used for telling lzop what to compress
+        # absolute upload paths are used for telling openssl what to compress
         local_abspaths = [os.path.abspath(match) for match in matches]
 
         # computed to subtract out extra extraneous absolute path
@@ -437,7 +437,7 @@ class S3Backup(object):
                         s3_url = line[pos:]
                         assert s3_url.startswith(backup_s3_cluster_prefix)
                         base, partition_name = s3_url.rsplit('/', 1)
-                        match = re.match(r'part_(\d+).tar.lzo', partition_name)
+                        match = re.match(r'part_(\d+).tar.gz.aes', partition_name)
                         if not match:
                             raise UserCritical(
                                 'Malformed tar partition in base backup',
@@ -541,7 +541,7 @@ class S3Backup(object):
                             sentinel)
                         sentinel.flush()
 
-                        # Avoid using do_lzop_s3_put to store
+                        # Avoid using do_openssl_s3_put to store
                         # uncompressed: easier to read/double click
                         # on/dump to terminal
                         check_call_wait_sigint(
@@ -574,7 +574,7 @@ class S3Backup(object):
         wal_file_name = os.path.basename(wal_path)
 
         with self.s3cmd_temp_config as s3cmd_config:
-            worker.do_lzop_s3_put(
+            worker.do_openssl_s3_put(
                 '{0}/wal_{1}/{2}'.format(self.s3_prefix,
                                          FILE_STRUCTURE_VERSION,
                                          wal_file_name),
@@ -592,8 +592,8 @@ class S3Backup(object):
 
         """
         with self.s3cmd_temp_config as s3cmd_config:
-            worker.do_lzop_s3_get(
-                '{0}/wal_{1}/{2}.lzo'.format(self.s3_prefix,
+            worker.do_openssl_s3_get(
+                '{0}/wal_{1}/{2}.gz.aes'.format(self.s3_prefix,
                                              FILE_STRUCTURE_VERSION,
                                              wal_name),
                 wal_destination, s3cmd_config.name)
@@ -659,7 +659,7 @@ class S3Backup(object):
 
 
 def external_program_check(
-    to_check=frozenset([PSQL_BIN, LZOP_BIN, S3CMD_BIN, MBUFFER_BIN])):
+    to_check=frozenset([PSQL_BIN, OPENSSL_BIN, S3CMD_BIN, MBUFFER_BIN])):
     """
     Validates the existence and basic working-ness of other programs
 
@@ -827,7 +827,7 @@ def main(argv=None):
 
     try:
         if subcommand == 'backup-fetch':
-            external_program_check([S3CMD_BIN, LZOP_BIN])
+            external_program_check([S3CMD_BIN, OPENSSL_BIN])
             backup_cxt.database_s3_fetch(args.PG_CLUSTER_DIRECTORY,
                                          args.BACKUP_NAME,
                                          pool_size=args.pool_size)
@@ -835,7 +835,7 @@ def main(argv=None):
             external_program_check([S3CMD_BIN])
             backup_cxt.backup_list()
         elif subcommand == 'backup-push':
-            external_program_check([S3CMD_BIN, LZOP_BIN, PSQL_BIN, MBUFFER_BIN])
+            external_program_check([S3CMD_BIN, OPENSSL_BIN, PSQL_BIN, MBUFFER_BIN])
             rate_limit = args.rate_limit
             if rate_limit is not None and rate_limit < 8192:
                 print >>sys.stderr, ('--cluster-read-rate-limit must be a '
@@ -846,13 +846,13 @@ def main(argv=None):
                 args.PG_CLUSTER_DIRECTORY, rate_limit=rate_limit,
                 pool_size=args.pool_size)
         elif subcommand == 'wal-fetch':
-            external_program_check([S3CMD_BIN, LZOP_BIN])
+            external_program_check([S3CMD_BIN, OPENSSL_BIN])
             backup_cxt.wal_s3_restore(args.WAL_SEGMENT, args.WAL_DESTINATION)
         elif subcommand == 'wal-push':
-            external_program_check([S3CMD_BIN, LZOP_BIN])
+            external_program_check([S3CMD_BIN, OPENSSL_BIN])
             backup_cxt.wal_s3_archive(args.WAL_SEGMENT)
         elif subcommand == 'wal-fark':
-            external_program_check([S3CMD_BIN, LZOP_BIN])
+            external_program_check([S3CMD_BIN, OPENSSL_BIN])
             backup_cxt.wal_fark(args.PG_CLUSTER_DIRECTORY)
         else:
             print >>sys.stderr, ('Subcommand {0} not implemented!'

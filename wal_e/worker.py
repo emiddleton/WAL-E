@@ -22,7 +22,7 @@ logger = log_help.get_logger('wal_e.worker')
 
 
 PSQL_BIN = 'psql'
-LZOP_BIN = 'lzop'
+OPENSSL_BIN = 'openssl'
 S3CMD_BIN = 's3cmd'
 MBUFFER_BIN = 'mbuffer'
 
@@ -76,7 +76,7 @@ def do_partition_put(backup_s3_prefix, tpart_number, tpart, rate_limit,
 
     """
     with tempfile.NamedTemporaryFile(mode='w') as tf:
-        compression_p = popen_sp([LZOP_BIN, '--stdout'],
+        compression_p = popen_sp([OPENSSL_BIN,'enc','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'],
                                  stdin=subprocess.PIPE, stdout=tf,
                                  bufsize=BUFSIZE_HT)
         tpart.tarfile_write(compression_p.stdin, rate_limit=rate_limit)
@@ -100,7 +100,7 @@ def do_partition_put(backup_s3_prefix, tpart_number, tpart, rate_limit,
         check_call_wait_sigint(
             [S3CMD_BIN, '-c', s3cmd_config_path, 'put', tf.name,
              '/'.join([backup_s3_prefix, 'tar_partitions',
-                       'part_{tpart_number}.tar.lzo'.format(
+                       'part_{tpart_number}.tar.gz.aes'.format(
                             tpart_number=tpart_number)])])
 
 
@@ -111,10 +111,10 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
         popens = pipe(
             dict(args=[S3CMD_BIN, '-c', s3cmd_config_path, 'get',
                        '/'.join([backup_s3_prefix, 'tar_partitions',
-                                 'part_{0}.tar.lzo'.format(tpart_number)]),
+                                 'part_{0}.tar.gz.aes'.format(tpart_number)]),
                        '-'],
                  bufsize=BUFSIZE_HT),
-            dict(args=[LZOP_BIN, '-d', '--stdout'], stdout=subprocess.PIPE,
+            dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'], stdout=subprocess.PIPE,
                  bufsize=BUFSIZE_HT))
 
         assert len(popens) > 0
@@ -125,7 +125,7 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
 
         pipe_wait(popens)
 
-        s3cmd_proc, lzop_proc = popens
+        s3cmd_proc, openssl_proc = popens
 
         def check_exitcode(cmdname, popen):
             if popen.returncode != 0:
@@ -135,7 +135,7 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
                     unicode(s3cmd_proc.returncode))
 
         check_exitcode('s3cmd', s3cmd_proc)
-        check_exitcode('lzop', lzop_proc)
+        check_exitcode('openssl', openssl_proc)
     except KeyboardInterrupt, keyboard_int:
         for popen in popens:
             try:
@@ -152,7 +152,7 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
             tar.close()
 
 
-def do_lzop_s3_put(s3_url, path, s3cmd_config_path):
+def do_openssl_s3_put(s3_url, path, s3cmd_config_path):
     """
     Synchronous version of the s3-upload wrapper
 
@@ -161,7 +161,7 @@ def do_lzop_s3_put(s3_url, path, s3cmd_config_path):
 
     """
     with tempfile.NamedTemporaryFile(mode='w') as tf:
-        compression_p = popen_sp([LZOP_BIN, '--stdout', path], stdout=tf,
+        compression_p = popen_sp([OPENSSL_BIN,'enc','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password','-in',path], stdout=tf,
                                  bufsize=BUFSIZE_HT)
         compression_p.wait()
 
@@ -176,19 +176,19 @@ def do_lzop_s3_put(s3_url, path, s3cmd_config_path):
         tf.flush()
 
         check_call_wait_sigint([S3CMD_BIN, '-c', s3cmd_config_path,
-                                'put', tf.name, s3_url + '.lzo'])
+                                'put', tf.name, s3_url + '.gz.aes'])
 
 
-def do_lzop_s3_get(s3_url, path, s3cmd_config_path):
+def do_openssl_s3_get(s3_url, path, s3cmd_config_path):
     """
     Get and decompress a S3 URL
 
-    This streams the s3cmd directly to lzop; the compressed version is
+    This streams the s3cmd directly to openssl; the compressed version is
     never stored on disk.
 
     """
 
-    assert s3_url.endswith('.lzo'), 'Expect an lzop-compressed file'
+    assert s3_url.endswith('.gz.aes'), 'Expect an openssl aes encrypted file'
 
     with open(path, 'wb') as decomp_out:
         popens = []
@@ -198,11 +198,11 @@ def do_lzop_s3_get(s3_url, path, s3cmd_config_path):
                 dict(args=[S3CMD_BIN, '-c', s3cmd_config_path,
                            'get', s3_url, '-'],
                      bufsize=BUFSIZE_HT),
-                dict(args=[LZOP_BIN, '-d'], stdout=decomp_out,
+                dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:/var/lib/postgresql/backup-password'], stdout=decomp_out,
                      bufsize=BUFSIZE_HT))
             pipe_wait(popens)
 
-            s3cmd_proc, lzop_proc = popens
+            s3cmd_proc, openssl_proc = popens
 
             def check_exitcode(cmdname, popen):
                 if popen.returncode != 0:
@@ -212,7 +212,7 @@ def do_lzop_s3_get(s3_url, path, s3cmd_config_path):
                         unicode(s3cmd_proc.returncode))
 
             check_exitcode('s3cmd', s3cmd_proc)
-            check_exitcode('lzop', lzop_proc)
+            check_exitcode('openssl', openssl_proc)
 
             print >>sys.stderr, ('Got and decompressed file: '
                                  '{s3_url} to {path}'
