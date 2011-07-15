@@ -76,7 +76,7 @@ def psql_csv_run(sql_command, error_handler=None):
     csv_query = ('COPY ({query}) TO STDOUT WITH CSV HEADER;'
                  .format(query=sql_command))
 
-    psql_proc = popen_sp([PSQL_BIN, '-d', 'postgres', '-c', csv_query],
+    psql_proc = popen_sp([PSQL_BIN, '-p',os.getenv('WALE_PG_PORT'),'-d', 'postgres', '-c', csv_query],
                          stdout=subprocess.PIPE)
     stdout = psql_proc.communicate()[0]
 
