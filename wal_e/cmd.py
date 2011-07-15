@@ -439,7 +439,7 @@ class S3Backup(object):
                         s3_url = line[pos:]
                         assert s3_url.startswith(backup_s3_cluster_prefix)
                         base, partition_name = s3_url.rsplit('/', 1)
-                        match = re.match(r'part_(\d+).tar.gz.aes', partition_name)
+                        match = re.match(r'part_(\d+).tar.lzo.aes', partition_name)
                         if not match:
                             raise UserCritical(
                                 'Malformed tar partition in base backup',
@@ -595,7 +595,7 @@ class S3Backup(object):
         """
         with self.s3cmd_temp_config as s3cmd_config:
             worker.do_lzo_aes_s3_get(
-                '{0}/wal_{1}/{2}.gz.aes'.format(self.s3_prefix,
+                '{0}/wal_{1}/{2}.lzo.aes'.format(self.s3_prefix,
                                              FILE_STRUCTURE_VERSION,
                                              wal_name),
                 wal_destination, s3cmd_config.name)

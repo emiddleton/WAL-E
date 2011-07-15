@@ -1,0 +1,4 @@
+#!/bin/sh
+#
+# command for decrypting and decompressing a wal file
+cat /dev/stdin | openssl enc -d -aes-256-cbc -salt -pass file:$PASSWORD_PATH | lzop -d --stdout

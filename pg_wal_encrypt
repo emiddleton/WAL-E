@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+# command for compressing and encrypting a wal file
+#
+case $# in
+0)
+  cat /dev/stdin | lzop --stdout | openssl enc -aes-256-cbc -salt -pass file:$PASSWORD_PATH
+  ;;
+1)
+  cat $1 | lzop --stdout | openssl enc -aes-256-cbc -salt -pass file:$PASSWORD_PATH
+  ;;
+*)
+  exit -1;
+  ;;
+esac
