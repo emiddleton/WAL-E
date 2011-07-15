@@ -21,8 +21,8 @@ logger = log_help.get_logger('wal_e.worker')
 
 
 PSQL_BIN = 'psql'
-ENCODE_BIN = 'pg_wall_encrypt'
-DECODE_BIN = 'pg_wall_decrypt'
+ENCODE_BIN = 'pg_wal_encrypt'
+DECODE_BIN = 'pg_wal_decrypt'
 S3CMD_BIN = 's3cmd'
 MBUFFER_BIN = 'mbuffer'
 
