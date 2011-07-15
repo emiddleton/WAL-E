@@ -263,7 +263,9 @@ class S3Backup(object):
                     matches.append(os.path.join(root, 'pg_xlog'))
 
             for filename in filenames:
-                if is_cluster_toplevel and filename in ('postmaster.pid',
+                if is_cluster_toplevel and filename in ('server.key',
+                                                        'server.crt',
+                                                        'postmaster.pid',
                                                         'postgresql.conf'):
                     # Do not include the postmaster pid file or the
                     # configuration file in the backup.
