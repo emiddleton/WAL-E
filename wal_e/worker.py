@@ -114,7 +114,7 @@ def do_partition_get(backup_s3_prefix, local_root, tpart_number,
                                  'part_{0}.tar.gz.aes'.format(tpart_number)]),
                        '-'],
                  bufsize=BUFSIZE_HT),
-            dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD')], stdout=subprocess.PIPE,
+            dict(args=[OPENSSL_BIN,'enc','-d','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD')], stdout=subprocess.PIPE,
                  bufsize=BUFSIZE_HT))
 
         assert len(popens) > 0
@@ -198,7 +198,7 @@ def do_openssl_s3_get(s3_url, path, s3cmd_config_path):
                 dict(args=[S3CMD_BIN, '-c', s3cmd_config_path,
                            'get', s3_url, '-'],
                      bufsize=BUFSIZE_HT),
-                dict(args=[OPENSSL_BIN,'dec','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD')], stdout=decomp_out,
+                dict(args=[OPENSSL_BIN,'enc','-d','-z','-aes-256-cbc','-salt','-pass','file:'+os.getenv('WALE_OPENSSL_PASSWORD')], stdout=decomp_out,
                      bufsize=BUFSIZE_HT))
             pipe_wait(popens)
 
